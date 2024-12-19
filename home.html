@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transcribe Audio</title>
+    <style>
+        @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css');
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #87CEEB; /* Sky-blue color */
+            height: 100vh;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            width: 100%;
+            text-align: center;
+            animation: fadeIn 1.2s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #333;
+            letter-spacing: 1px;
+        }
+
+        form, .microphone-section {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        input[type="file"] {
+            padding: 10px;
+            font-size: 16px;
+            border: 2px dashed #007bff;
+            border-radius: 8px;
+            background-color: #f0f4f8;
+            transition: border-color 0.3s ease;
+        }
+
+        input[type="file"]:hover {
+            border-color: #0056b3;
+        }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            font-size: 18px;
+            padding: 12px;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+            transform: translateY(-2px);
+        }
+
+        .icon-button {
+            background-color: transparent;
+            border: 2px solid #007bff;
+            border-radius: 50%;
+            font-size: 20px; /* Smaller button size */
+            cursor: pointer;
+            color: #007bff;
+            transition: transform 0.2s ease, color 0.3s ease;
+            padding: 10px; /* Adjusted padding for smaller button */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 50px; /* Set a fixed width */
+            height: 50px; /* Set a fixed height */
+        }
+
+        .icon-button:disabled {
+            color: #aaa;
+            cursor: not-allowed;
+            border-color: #aaa;
+        }
+
+        .icon-button:hover:not(:disabled) {
+            transform: scale(1.1); /* Slight hover effect */
+            color: #0056b3;
+        }
+
+        .status {
+            margin-top: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #007bff;
+        }
+
+        .result p {
+            margin-top: 20px;
+            font-size: 16px;
+            color: #333;
+        }
+
+        .error {
+            color: #ff4d4d;
+            font-weight: bold;
+        }
+
+        .loading {
+            font-size: 18px;
+            color: #007bff;
+            margin-top: 20px;
+            display: none;
+        }
+
+        /* Horizontal layout for buttons */
+        .microphone-section {
+            display: flex;              /* Align the buttons side by side */
+            justify-content: center;    /* Center the buttons horizontally */
+            gap: 20px;                  /* Add some space between the buttons */
+            align-items: center;        /* Align items vertically centered */
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Transcribe Audio</h1>
+        <div class="microphone-section">
+            <h3>Record Speech to Transcribe</h3>
+            <button class="icon-button" id="startRecording" title="Start Recording">
+                <i class="fas fa-microphone"></i>
+            </button>
+            <button class="icon-button" id="stopRecording" title="Stop Recording" disabled>
+                <i class="fas fa-stop"></i>
+            </button>
+        </div>
+
+       
+        <form id="audioForm">
+            <input type="file" name="audio" accept="audio/*" required>
+            <button type="submit">Upload and Transcribe</button>
+        </form>
+        
+
+        <div class="status" id="statusMessage"></div>
+        <div class="loading" id="loadingMessage">Transcribing... Please wait.</div>
+        <div class="result">
+            <p id="transcription"></p>
+            <p id="language"></p>
+            <p class="error" id="error"></p>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('audioForm');
+        const startRecordingButton = document.getElementById('startRecording');
+        const stopRecordingButton = document.getElementById('stopRecording');
+        const loadingMessage = document.getElementById('loadingMessage');
+        const statusMessage = document.getElementById('statusMessage');
+        const transcriptionElement = document.getElementById('transcription');
+        const languageElement = document.getElementById('language');
+        const errorElement = document.getElementById('error');
+
+        let mediaRecorder;
+        let audioChunks = [];
+
+        form.addEventListener('submit', function (event) {
+            event.preventDefault();
+            loadingMessage.style.display = 'block';
+            const formData = new FormData(form);
+            uploadAudio(formData);
+        });
+
+        startRecordingButton.addEventListener('click', async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = event => {
+                    if (event.data.size > 0) audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    const formData = new FormData();
+                    formData.append('audio', audioBlob, 'recording.wav');
+
+                    // Show status
+                    statusMessage.textContent = "Processing audio...";
+                    uploadAudio(formData);
+                };
+
+                mediaRecorder.start();
+                startRecordingButton.disabled = true;
+                stopRecordingButton.disabled = false;
+                statusMessage.textContent = "Recording started. Press Stop to finish.";
+            } catch (error) {
+                errorElement.textContent = "Unable to access microphone.";
+            }
+        });
+
+        stopRecordingButton.addEventListener('click', () => {
+            if (mediaRecorder && mediaRecorder.state === "recording") {
+                mediaRecorder.stop();
+                startRecordingButton.disabled = false;
+                stopRecordingButton.disabled = true;
+                statusMessage.textContent = "Recording stopped. Processing...";
+            }
+        });
+
+        function uploadAudio(formData) {
+            transcriptionElement.textContent = '';
+            languageElement.textContent = '';
+            errorElement.textContent = '';
+
+            fetch('/upload', {
+                method: 'POST',
+                body: formData,
+            })
+                .then(response => response.json())
+                .then(data => {
+                    loadingMessage.style.display = 'none';
+                    if (data.error) {
+                        errorElement.textContent = data.error;
+                    } else {
+                        transcriptionElement.textContent = `Transcription: ${data.transcription}`;
+                        languageElement.textContent = `Detected Language: ${data.language}`;
+                    }
+                    statusMessage.textContent = "";
+                })
+                .catch(error => {
+                    loadingMessage.style.display = 'none';
+                    errorElement.textContent = 'An error occurred: ' + error.message;
+                });
+        }
+    </script>
+</body>
+</html>
